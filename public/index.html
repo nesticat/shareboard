@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shareboard</title>
+  <style>
+    html,body{height:100%;margin:0}
+    #toolbar{position:fixed;left:10px;top:10px;z-index:10;background:rgba(255,255,255,0.9);padding:8px;border-radius:6px}
+    #color{width:40px;height:28px;border:0}
+    #canvas{display:block;width:100%;height:100%}
+    #users {position:fixed;right:10px;top:10px;background:rgba(255,255,255,0.9);padding:8px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="clear">Clear</button>
+    <span>My color:</span>
+    <input id="color" type="color" disabled />
+  </div>
+  <div id="users"></div>
+  <canvas id="canvas"></canvas>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let last = null;
+    let myColor = '#000000';
+
+    function resize(){
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function drawLine(x1,y1,x2,y2,color,emit){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+      ctx.closePath();
+      if (emit) {
+        socket.emit('draw', { x1,y1,x2,y2 });
+      }
+    }
+
+    canvas.addEventListener('pointerdown', (e)=>{
+      drawing = true;
+      last = { x: e.clientX, y: e.clientY };
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e)=>{
+      if (!drawing) return;
+      const cur = { x: e.clientX, y: e.clientY };
+      drawLine(last.x, last.y, cur.x, cur.y, myColor, true);
+      last = cur;
+    });
+    canvas.addEventListener('pointerup', (e)=>{
+      drawing = false;
+      last = null;
+    });
+
+    document.getElementById('clear').addEventListener('click', ()=>{
+      socket.emit('clear');
+      clearCanvas();
+    });
+
+    function clearCanvas(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+
+    socket.on('init', (data)=>{
+      myColor = data.color || '#000000';
+      document.getElementById('color').value = rgbFromHslString(myColor) || '#000000';
+      // replay history
+      if (Array.isArray(data.history)){
+        data.history.forEach(item=>{
+          drawLine(item.x1,item.y1,item.x2,item.y2,item.color,false);
+        });
+      }
+    });
+
+    socket.on('draw', (item)=>{
+      drawLine(item.x1,item.y1,item.x2,item.y2,item.color,false);
+    });
+
+    socket.on('clear', ()=>{
+      clearCanvas();
+    });
+
+    // helper to convert server hsl with spaces to hex for color input
+    function rgbFromHslString(hsl){
+      try{
+        // hsl(120 80% 60%) -> let the browser parse it
+        const tmp = document.createElement('div');
+        tmp.style.color = hsl;
+        document.body.appendChild(tmp);
+        const cs = getComputedStyle(tmp).color;
+        document.body.removeChild(tmp);
+        // cs -> rgb(r, g, b)
+        const m = cs.match(/rgb\((\d+), (\d+), (\d+)\)/);
+        if (!m) return null;
+        const r = parseInt(m[1]).toString(16).padStart(2,'0');
+        const g = parseInt(m[2]).toString(16).padStart(2,'0');
+        const b = parseInt(m[3]).toString(16).padStart(2,'0');
+        return `#${r}${g}${b}`;
+      }catch(e){return null}
+    }
+  </script>
+</body>
+</html>
