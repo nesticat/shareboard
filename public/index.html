@@ -38,6 +38,8 @@
       canvas.style.width = window.innerWidth + 'px';
       canvas.style.height = window.innerHeight + 'px';
       ctx.scale(dpr, dpr);
+  // redraw background grid after resize
+  drawGrid();
     }
     window.addEventListener('resize', resize);
     resize();
@@ -90,7 +92,36 @@
     });
 
     function clearCanvas(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+  // clear drawing but redraw grid background (use CSS pixels)
+  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+      drawGrid();
+    }
+
+    // draw a subtle grid background so canvas always shows a grid
+    function drawGrid(){
+      // draw in CSS pixels; ctx is already scaled to DPR in resize
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      // don't disturb existing stroke style for subsequent drawLine calls
+  ctx.save();
+  // clear using CSS pixels since ctx is scaled to devicePixelRatio
+  ctx.clearRect(0,0,w,h);
+      const gap = 25; // pixels between grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= w; x += gap){
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= h; y += gap){
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     socket.on('init', (data)=>{
