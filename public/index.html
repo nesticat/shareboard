@@ -8,7 +8,7 @@
     html,body{height:100%;margin:0}
     #toolbar{position:fixed;left:10px;top:10px;z-index:10;background:rgba(255,255,255,0.9);padding:8px;border-radius:6px}
     #color{width:40px;height:28px;border:0}
-    #canvas{display:block;width:100%;height:100%}
+  #canvas{display:block;width:100%;height:100%; touch-action: none; -ms-touch-action: none;}
     #users {position:fixed;right:10px;top:10px;background:rgba(255,255,255,0.9);padding:8px;border-radius:6px}
   </style>
 </head>
@@ -31,6 +31,8 @@
 
     function resize(){
       const dpr = window.devicePixelRatio || 1;
+      // reset any existing transform/scale to avoid cumulative scaling
+      ctx.setTransform(1,0,0,1,0,0);
       canvas.width = Math.floor(window.innerWidth * dpr);
       canvas.height = Math.floor(window.innerHeight * dpr);
       canvas.style.width = window.innerWidth + 'px';
@@ -67,6 +69,17 @@
       last = cur;
     });
     canvas.addEventListener('pointerup', (e)=>{
+      drawing = false;
+      last = null;
+      try{ canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); }catch(_){}
+    });
+
+    // handle interruptions (e.g., OS gestures or multiple touches)
+    canvas.addEventListener('pointercancel', (e)=>{
+      drawing = false;
+      last = null;
+    });
+    canvas.addEventListener('lostpointercapture', (e)=>{
       drawing = false;
       last = null;
     });
